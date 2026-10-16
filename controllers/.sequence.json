@@ -1,0 +1,10 @@
+{
+  "sequence": [
+    "sendcoomend.ts"
+  ],
+  "sequence.development": [],
+  "sequence.test": [],
+  "sequence.production": [],
+  "excludes": [],
+  "sequenceProps": {}
+}

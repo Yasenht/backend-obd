@@ -1,0 +1,192 @@
+import {
+  BaseController,
+  Controller,
+  Delete,
+  Env,
+  Get,
+  type IRequestContext,
+  type IRoute,
+  parseQueryParams,
+  Patch,
+  Post,
+  Response,
+  Store,
+  Versioned,
+} from "@Core/common/mod.ts";
+import { responseValidator } from "@Core/common/validators.ts";
+import { type RouterContext, Status } from "oak";
+import e from "validator";
+import { hash } from "ohash";
+import { queryValidator, normalizeFilters } from "@Core/common/validators.ts";
+import { ObjectId } from "mongo";
+
+import { 
+  <%- utils.pascalCase(utils.singular(name)) %>Model, 
+  Input<%- utils.pascalCase(utils.singular(name)) %>Schema
+} from "@Models/<%- utils.singular(name) %>.ts";
+
+@Controller("/<%- utils.pathCase(name) %>/", { name: "<%- utils.camelCase(name) %>" })
+export default class <%- utils.pascalCase(name) %>Controller extends BaseController {
+  @Post("/")
+  public create(route: IRoute) {
+    // Define Body Schema
+    const BodySchema = Input<%- utils.pascalCase(utils.singular(name)) %>Schema;
+
+    return new Versioned().add("1.0.0", {
+      shape: () => ({
+        body: BodySchema.toSample(),
+        return: responseValidator(<%- utils.pascalCase(utils.singular(name)) %>Model.getSchema()).toSample(),
+      }),
+      handler: async (ctx: IRequestContext<RouterContext<string>>) => {
+        // Body Validation
+        const Body = await BodySchema.validate(
+          await ctx.router.request.body.json(),
+          { name: `${route.scope}.body` },
+        );
+
+        return Response.statusCode(Status.Created).data(
+          await <%- utils.pascalCase(utils.singular(name)) %>Model.create(Body),
+        );
+      },
+    });
+  }
+
+  @Patch("/:id/")
+  public update(route: IRoute) {
+    // Define Params Schema
+    const ParamsSchema = e.object({
+      id: e.instanceOf(ObjectId, { instantiate: true })
+    });
+
+    // Define Body Schema
+    const BodySchema = e.partial(Input<%- utils.pascalCase(utils.singular(name)) %>Schema);
+
+    return new Versioned().add("1.0.0", {
+      shape: () => ({
+        params: ParamsSchema.toSample(),
+        body: BodySchema.toSample(),
+        return: responseValidator(e.partial(<%- utils.pascalCase(utils.singular(name)) %>Model.getSchema())).toSample(),
+      }),
+      handler: async (ctx: IRequestContext<RouterContext<string>>) => {
+        // Params Validation
+        const Params = await ParamsSchema.validate(ctx.router.params, {
+          name: `${route.scope}.params`,
+        });
+
+        // Body Validation
+        const Body = await BodySchema.validate(
+          await ctx.router.request.body.json(),
+          { name: `${route.scope}.body` },
+        );
+
+        const { modifications } = await <%- utils.pascalCase(utils.singular(name)) %>Model.updateOneOrFail(
+          Params.id,
+          Body,
+        );
+
+        return Response.data(modifications);
+      },
+    });
+  }
+
+  @Get("/:id?/")
+  public get(route: IRoute) {
+    // Define Query Schema
+    const QuerySchema = queryValidator();
+
+    // Define Params Schema
+    const ParamsSchema = e.object({
+      id: e.optional(e.instanceOf(ObjectId, { instantiate: true }))
+    });
+
+    return Versioned.add("1.0.0", {
+      shape: () => ({
+        query: QuerySchema.toSample(),
+        params: ParamsSchema.toSample(),
+        return: responseValidator(e.object({
+          totalCount: e.optional(e.number()),
+          results: e.array(<%- utils.pascalCase(utils.singular(name)) %>Model.getSchema())
+        })).toSample(),
+      }),
+      handler: async (ctx: IRequestContext<RouterContext<string>>) => {
+        // Query Validation
+        const Query = await QuerySchema.validate(
+          parseQueryParams(ctx.router.request.url.search),
+          { name: `${route.scope}.query` },
+        );
+
+        /**
+         * It is recommended to keep the following validators in place even if you don't want to validate any data.
+         * It will prevent the client from injecting unexpected data into the request.
+         */
+
+        // Params Validation
+        const Params = await ParamsSchema.validate(ctx.router.params, {
+          name: `${route.scope}.params`,
+        });
+
+        const <%- utils.pascalCase(name) %>BaseFilters = {
+          ...normalizeFilters(Query.filters),
+          ...(Params.id ? { _id: new ObjectId(Params.id) } : {}),
+          ...(Query.range instanceof Array
+            ? {
+              createdAt: {
+                $gt: new Date(Query.range[0]),
+                $lt: new Date(Query.range[1]),
+              },
+            }
+            : {}),
+        };
+
+        const <%- utils.pascalCase(name) %>ListQuery = <%- utils.pascalCase(utils.singular(name)) %>Model
+          .search(Query.search)
+          .filter(<%- utils.pascalCase(name) %>BaseFilters)
+          .sort(Query.sort)
+          .skip(Query.offset)
+          .limit(Query.limit);
+
+        if (Query.project) <%- utils.pascalCase(name) %>ListQuery.project(Query.project);
+
+        return Response.data({
+          totalCount: Query.includeTotalCount
+            ? await Store.cache(
+                [
+                  "totalCount",
+                  "<%- utils.camelCase(name) %>",
+                  hash(<%- utils.pascalCase(name) %>BaseFilters),
+                ],
+                () => await <%- utils.pascalCase(utils.singular(name)) %>Model.countDocuments(<%- utils.pascalCase(name) %>BaseFilters),
+                (await Env.number("GLOBAL_PAGINATION_COUNT_TTL")) * 1000,
+              )
+            : undefined,
+          results: await <%- utils.pascalCase(name) %>ListQuery,
+        });
+      },
+    });
+  }
+
+  @Delete("/:id/")
+  public delete(route: IRoute) {
+    // Define Params Schema
+    const ParamsSchema = e.object({
+      id: e.instanceOf(ObjectId, { instantiate: true })
+    });
+
+    return Versioned.add("1.0.0", {
+      shape: () => ({
+        params: ParamsSchema.toSample(),
+        return: responseValidator().toSample(),
+      }),
+      handler: async (ctx: IRequestContext<RouterContext<string>>) => {
+        // Params Validation
+        const Params = await ParamsSchema.validate(ctx.router.params, {
+          name: `${route.scope}.params`,
+        });
+
+        await <%- utils.pascalCase(utils.singular(name)) %>Model.deleteOneOrFail(Params.id);
+
+        return Response.true();
+      },
+    });
+  }
+}

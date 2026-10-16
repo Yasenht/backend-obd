@@ -1,0 +1,123 @@
+import type { ObjectId, TRequestOptions, TRequestExecutors, TResponseShape } from "../types.ts";
+
+<% const TypeMap = new Map(); -%>
+<% const RouteGroups = Object.entries(routeGroups); -%>
+
+<% for (const [_, Routes] of RouteGroups) { -%>
+    
+<% const sortedRoutes = Routes.sort((a) => (a.options.method.toLowerCase() === "get" ? -1 : 1)); -%>
+
+<% for (let i = 0; i < sortedRoutes.length; i++) { -%>
+<% const Route = sortedRoutes[i]; -%>
+<% const RouteName = !i ? Route.options.name : Route.options.name + Route.options.method.toUpperCase(); -%>
+
+<% const QueryShape = await getTypeStr(Route, "query"); -%>
+<% const ParamsShape = await getTypeStr(Route, "params"); -%>
+<% const BodyShape = await getTypeStr(Route, "body"); -%>
+<% const ReturnShape = await getTypeStr(Route, "return"); -%>
+
+<% TypeMap.set(RouteName, { query: QueryShape, params: ParamsShape, body: BodyShape, return: ReturnShape }) -%>
+
+export type TRoute$<%- scope %>$<%- RouteName %> = {
+    query: <%- QueryShape.content %>,
+    params: <%- ParamsShape.content %>,
+    body: <%- BodyShape.content %>,
+    return: <%- ReturnShape.content.trim() === "{}" ? "{ status: boolean; data: undefined }" : ReturnShape.content %>,
+};
+
+<% } -%>
+<% } -%>
+
+export interface IController$<%- scope %> {
+<% for (const [_, Routes] of RouteGroups) { -%>
+
+<% const sortedRoutes = Routes.sort((a) => (a.options.method.toLowerCase() === "get" ? -1 : 1)); -%>
+
+<% for (let i = 0; i < sortedRoutes.length; i++) { -%>
+<% const Route = sortedRoutes[i]; -%>
+<% const RouteName = !i ? Route.options.name : Route.options.name + Route.options.method.toUpperCase(); -%>
+<% if (Route.options.method.toLowerCase() === "get") { -%>
+    <%- RouteName %>(): TRequestExecutors<TRoute$<%- scope %>$<%- RouteName %>["return"]>;
+<% } -%>
+    <%- RouteName %><
+        Method extends "<%- Route.options.method %>",
+        QueryShape extends TRoute$<%- scope %>$<%- RouteName %>["query"],
+        ParamsShape extends TRoute$<%- scope %>$<%- RouteName %>["params"],
+        BodyShape extends TRoute$<%- scope %>$<%- RouteName %>["body"],
+        ReturnShape extends TResponseShape<any> = TRoute$<%- scope %>$<%- RouteName %>["return"],
+    >(data: {
+        method?: Method;
+        query<%- TypeMap.get(RouteName)?.query?.optional ? "?" : "" %>: QueryShape;
+        params<%- TypeMap.get(RouteName)?.params?.optional ? "?" : "" %>: ParamsShape;
+        body<%- TypeMap.get(RouteName)?.body?.optional ? "?" : "" %>: BodyShape;
+    } & TRequestOptions<ReturnShape>): TRequestExecutors<ReturnShape, BodyShape>;
+<% } -%>
+<% } -%>
+}
+
+export const <%- scope %>Module = (sdk: any) => {
+    const resolveAxiosConfig = (config: any) => {
+        if(config?.headers) {
+            const headerKeys = Object.keys(config.headers);
+        
+            if(headerKeys.length) {
+                config.headers = headerKeys.reduce((headers, key) => {
+                    headers[key.toLowerCase()] = config.headers[key];
+
+                    return headers;
+                }, {} as Record<string, string>);
+            }
+        }
+
+        return config;
+    }
+
+    const methods = {
+<% for (const [_, Routes] of RouteGroups) { %>
+    
+<% const sortedRoutes = Routes.sort((a) => (a.options.method.toLowerCase() === "get" ? -1 : 1)); -%>
+
+<% for (let i = 0; i < sortedRoutes.length; i++) { -%>
+<% const Route = sortedRoutes[i]; -%>
+<% const RouteName = !i ? Route.options.name : Route.options.name + Route.options.method.toUpperCase(); -%>
+        <%- RouteName %>(data?: any) {
+            return sdk.resolveAxiosResponse(async () => {
+                if (!sdk._axios) throw new Error("Axios not initialized!");
+
+                sdk.checkPermission("<%- scope %>", "<%- RouteName %>");
+
+                const url = Object.entries<string>(data?.params ?? {}).reduce(
+                    (endpoint, [key, value]) => endpoint.replace(new RegExp(`:${key}\\??`, "g"), value ?? ""),
+                    "<%- Route.endpoint %>"
+                ).replace(/:\w+\?\/?/g, "");
+
+                const res = await sdk._axios.request({
+                    method: data?.method ?? "<%- Route.options.method %>" ?? "get",
+                    url,
+                    params: data?.query,
+                    data: data?.body,
+                    signal: data?.signal,
+                    ...resolveAxiosConfig(data?.axiosConfig),
+                });
+
+                return res;
+            }, data);
+        },
+<% } %>
+<% } %>
+    } as IController$<%- scope %>;
+
+<% for (const [Name, Routes] of RouteGroups) { %>
+    
+<% const sortedRoutes = Routes.sort((a) => (a.options.method.toLowerCase() === "get" ? -1 : 1)); -%>
+
+<% for (let i = 0; i < sortedRoutes.length; i++) { -%>
+<% const Route = sortedRoutes[i]; -%>
+<% const RouteName = !i ? Route.options.name : Route.options.name + Route.options.method.toUpperCase(); -%>
+
+    (methods.<%- RouteName %> as any).__permission = "<%- scope %>.<%- RouteName %>";
+<% } %>
+<% } %>
+
+    return methods;
+};

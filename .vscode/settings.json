@@ -1,0 +1,15 @@
+{
+  "deno.enable": true,
+  "deno.lint": true,
+  "deno.unstable": true,
+  "postman.settings.dotenv-detection-notification-visibility": false,
+  "cSpell.words": [
+    "childs",
+    "ohash",
+    "Oridune",
+    "stringcase",
+    "Tarbal",
+    "tsgo",
+    "tvar"
+  ]
+}

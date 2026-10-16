@@ -1,0 +1,11 @@
+{
+  "sequence": [
+    "sendcoomend.ts",
+    "AnalyzeObd.ts"
+  ],
+  "sequence.development": [],
+  "sequence.test": [],
+  "sequence.production": [],
+  "excludes": [],
+  "sequenceProps": {}
+}
