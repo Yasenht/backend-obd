@@ -53,7 +53,7 @@ export class ObdParser {
 
     if (
       upper.includes("BUS INIT") &&
-      upper.includes("ERROR")
+      upper.includes("ERROR backend ")
     ) {
       return {
         type: "elm_error",
