@@ -1,7 +1,8 @@
 {
   "sequence": [
     "sendcoomend.ts",
-    "AnalyzeObd.ts"
+    "AnalyzeObd.ts",
+    "analyze-dtc.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],

@@ -1,6 +1,7 @@
 {
   "sequence": [
-    "sendcoomend.ts"
+    "sendcoomend.ts",
+    "analyze-dtc.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],
