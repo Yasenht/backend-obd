@@ -1,6 +1,7 @@
 import {
   BaseController,
   Controller,
+  Get,
   type IRequestContext,
   type IRoute,
   Post,
@@ -109,6 +110,22 @@ export default class AnalyzeDtcController extends BaseController {
               totalFaults: faults.length,
 
               faults,
+            });
+        },
+      },
+    );
+  }
+  @Get("/healthy")
+  public check() {
+    return new Versioned().add(
+      "1.0.0",
+      {
+        handler: () => {
+          return Response
+            .statusCode(Status.OK)
+            .data({
+              status: "success",
+              message: "Server is awake and healthy",
             });
         },
       },
