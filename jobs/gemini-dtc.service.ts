@@ -358,14 +358,12 @@ confidence يجب أن تكون رقماً بين 0 و1.
       response.text,
     ) as TGeminiDtcAnalysis;
 
-    // التأكد من أن Gemini لم يغير رمز العطل
     if (analysis.code.toUpperCase() !== code.toUpperCase()) {
       throw new Error(
         "Gemini returned a different DTC code",
       );
     }
 
-    // ضبط النسب ضمن المجال الصحيح
     analysis.severityPercentage = Math.min(
       100,
       Math.max(0, analysis.severityPercentage),

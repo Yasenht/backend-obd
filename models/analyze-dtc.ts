@@ -1,12 +1,10 @@
 import e, { inferInput, inferOutput } from "validator";
 import { InputDocument, Mongo, ObjectId, OutputDocument } from "mongo";
 
-// Input Schema
 export const InputAnalyzeDtcSchema = e.object({
   codes: e.array(e.string()).min(0).max(100),
 });
 
-// كل عطل يتم تحليله بشكل مستقل
 export const DtcFaultSchema = e.object({
   code: e.string(),
 
