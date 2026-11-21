@@ -1,7 +1,8 @@
 {
   "sequence": [
     "sendcoomend.ts",
-    "analyze-dtc.ts"
+    "analyze-dtc.ts",
+    "vehicles.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],

@@ -2,7 +2,9 @@
   "sequence": [
     "sendcoomend.ts",
     "AnalyzeObd.ts",
-    "analyze-dtc.ts"
+    "analyze-dtc.ts",
+    "vehicle.ts",
+    "vehicle-telemetry.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],
