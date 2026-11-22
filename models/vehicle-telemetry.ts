@@ -36,6 +36,12 @@ export const VehicleTelemetryModel = Mongo.model(
   VehicleTelemetrySchema,
 );
 
+// Speeds up retrieving the latest live data for a vehicle.
+VehicleTelemetryModel.createIndex({
+  key: { vehicle: 1, recordedAt: -1 },
+  name: "vehicle_recordedAt",
+});
+
 VehicleTelemetryModel.pre("update", (details) => {
   details.updates.$set = {
     ...details.updates.$set,

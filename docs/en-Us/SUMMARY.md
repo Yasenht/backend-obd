@@ -28,6 +28,7 @@
 ## Examples
 
 * [Blog API CRUD](examples/blog-api-crud.md)
+* [Vehicle Management](examples/vehicle-management.md)
 * [Authentication](examples/authentication.md)
 * [Authorization](examples/authorization.md)
 * [Caching](examples/caching.md)
