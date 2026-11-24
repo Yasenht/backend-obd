@@ -24,7 +24,9 @@ export const respondWith = async (
       ["1", undefined].includes(
           Env.getSync("TRANSLATE_RESPONSE_MESSAGES", true),
         )
-        ? { translator: ctx.t }
+        ? {
+          translator: (ctx as unknown as { t: (target: string) => string }).t,
+        }
         : undefined,
     );
 

@@ -4,7 +4,9 @@
     "AnalyzeObd.ts",
     "analyze-dtc.ts",
     "vehicle.ts",
-    "vehicle-telemetry.ts"
+    "vehicle-telemetry.ts",
+    "account.ts",
+    "health.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],

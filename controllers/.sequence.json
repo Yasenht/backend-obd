@@ -2,7 +2,12 @@
   "sequence": [
     "sendcoomend.ts",
     "analyze-dtc.ts",
-    "vehicles.ts"
+    "vehicles.ts",
+    "auth.ts",
+    "health.ts",
+    "health-sensors.ts",
+    "health-maintenance.ts",
+    "health-reports.ts"
   ],
   "sequence.development": [],
   "sequence.test": [],
