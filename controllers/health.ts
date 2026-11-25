@@ -52,7 +52,6 @@ import {
   scopeVehicleAccount,
   touchProfileScanTimes,
 } from "@Helpers/health.ts";
-import { requireAuth } from "@Helpers/auth.ts";
 
 const ProfileListQuery = e.deepCast(e.object({
   search: e.optional(e.string().min(1).max(200)),
@@ -202,7 +201,7 @@ const rebuildDtcRecords = async (vehicleKey: string) => {
 
 @Controller("/health/", {
   name: "health",
-  middlewares: [requireAuth(), scopeVehicleAccount()],
+  middlewares: [scopeVehicleAccount()],
 })
 export default class HealthController extends BaseController {
   /* ---------------------------------------------------------------------- */

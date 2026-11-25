@@ -12,13 +12,11 @@ import { type RouterContext, Status } from "oak";
 import { AnalyzeDtcModel, InputAnalyzeDtcSchema } from "@Models/analyze-dtc.ts";
 
 import { GeminiDtcService } from "@Jobs/gemini-dtc.service.ts";
-import { requireAuth } from "@Helpers/auth.ts";
 
 import { responseValidator } from "@Core/common/validators.ts";
 
 @Controller("/analyze/dtc/", {
   name: "analyzeDtc",
-  middlewares: [requireAuth()],
 })
 export default class AnalyzeDtcController extends BaseController {
   @Post("/")

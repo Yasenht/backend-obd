@@ -15,7 +15,6 @@ import e from "validator";
 import { AccountModel, InputAccountSchema } from "@Models/account.ts";
 import {
   accessTokenResponse,
-  accountFromRequest,
   findRefreshToken,
   hashPassword,
   revokeRefreshToken,
@@ -202,21 +201,7 @@ export default class AuthController extends BaseController {
   @Get("/me")
   public me(_route: IRoute) {
     return {
-      handler: async (
-        ctx: IRequestContext<RouterContext<string>>,
-      ) => {
-        const Account = await accountFromRequest(ctx);
-
-        if (!Account) {
-          return fail(
-            Status.Unauthorized,
-            "UNAUTHENTICATED",
-            "A valid bearer token is required.",
-          );
-        }
-
-        return Response.data(publicAccount(Account));
-      },
+      handler: () => Response.data({}),
     };
   }
 }

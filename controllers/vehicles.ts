@@ -23,7 +23,6 @@ import {
   InputVehicleTelemetrySchema,
   VehicleTelemetryModel,
 } from "@Models/vehicle-telemetry.ts";
-import { requireAuth } from "@Helpers/auth.ts";
 import { ensureProfile, getAccountId } from "@Helpers/health.ts";
 
 const ParamsSchema = e.object({
@@ -63,7 +62,7 @@ const isDuplicateKeyError = (error: unknown) =>
   "code" in error &&
   (error as { code?: number }).code === 11000;
 
-const vehicleFilter = (id: string, account: ObjectId) => ({
+const vehicleFilter = (id: string, account: ObjectId | undefined) => ({
   account,
   $or: [
     { id },
@@ -161,7 +160,6 @@ const buildSearchHandler = (route: IRoute) =>
 
 @Controller("/vehicles/", {
   name: "vehicles",
-  middlewares: [requireAuth()],
 })
 export default class VehiclesController extends BaseController {
   @Post("/")
@@ -187,7 +185,7 @@ export default class VehiclesController extends BaseController {
           { name: `${route.scope}.body` },
         );
 
-        const Account = getAccountId(ctx)!;
+        const Account = getAccountId(ctx);
         const Existing = await VehicleModel.findOne({
           account: Account,
           vin: Body.vin,
@@ -278,7 +276,7 @@ export default class VehiclesController extends BaseController {
         );
 
         const Vehicle = await VehicleModel.findOne(
-          vehicleFilter(Params.id, getAccountId(ctx)!),
+          vehicleFilter(Params.id, getAccountId(ctx)),
         );
 
         if (!Vehicle) {
@@ -329,7 +327,7 @@ export default class VehiclesController extends BaseController {
         );
 
         const Vehicle = await VehicleModel.findOne(
-          vehicleFilter(Params.id, getAccountId(ctx)!),
+          vehicleFilter(Params.id, getAccountId(ctx)),
         );
 
         if (!Vehicle) {
@@ -385,7 +383,7 @@ export default class VehiclesController extends BaseController {
         );
 
         const Vehicle = await VehicleModel.findOne(
-          vehicleFilter(Params.id, getAccountId(ctx)!),
+          vehicleFilter(Params.id, getAccountId(ctx)),
         );
 
         if (!Vehicle) {
