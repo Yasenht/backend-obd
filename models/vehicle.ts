@@ -1,21 +1,19 @@
 import e, { inferInput, inferOutput } from "validator";
 import { InputDocument, Mongo, ObjectId, OutputDocument } from "mongo";
 
-/**
- * A VIN is 17 characters long and never contains the letters I, O, or Q.
- */
 const VinPattern = /^[A-HJ-NPR-Z0-9]{17}$/i;
 
 export const normalizeVin = (vin: string) => vin.trim().toUpperCase();
 
 export const normalizeVehicleName = (vehicleName: string) => vehicleName.trim();
 
-/**
- * Normalizes the public vehicle fields before validation and persistence.
- * Keeping this logic in one place makes the API case-insensitive for VINs.
- */
 export const normalizeVehicleFields = <
-  T extends { vin?: unknown; vehicle_name?: unknown },
+  T extends {
+    vin?: unknown;
+    vehicle_name?: unknown;
+    make?: unknown;
+    model?: unknown;
+  },
 >(data: T) => ({
   ...data,
 
@@ -24,6 +22,9 @@ export const normalizeVehicleFields = <
   vehicle_name: typeof data.vehicle_name === "string"
     ? normalizeVehicleName(data.vehicle_name)
     : data.vehicle_name,
+
+  make: typeof data.make === "string" ? data.make.trim() : data.make,
+  model: typeof data.model === "string" ? data.model.trim() : data.model,
 });
 
 export const InputVehicleSchema = e.object({
@@ -34,6 +35,10 @@ export const InputVehicleSchema = e.object({
   vehicle_name: e.string().min(1).max(120).describe(
     "The display name of the vehicle",
   ),
+
+  make: e.optional(e.string().min(1).max(120)),
+  model: e.optional(e.string().min(1).max(120)),
+  year: e.optional(e.number().int().min(1886).max(3000)),
 });
 
 export const VehicleSchema = e.object({

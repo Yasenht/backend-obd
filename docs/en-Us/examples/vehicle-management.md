@@ -32,13 +32,18 @@ Request:
 ```json
 {
   "vin": "1HGCM82633A004352",
-  "vehicle_name": "Honda Accord"
+  "vehicle_name": "My car",
+  "make": "Honda",
+  "model": "Accord",
+  "year": 2020
 }
 ```
 
 `vin` is required, must be 17 alphanumeric characters (I, O, and Q are not
 allowed), and is normalized to uppercase. `vehicle_name` is required and is
-trimmed.
+trimmed. `vehicle_name` is the user's distinctive name for the vehicle; `make`
+is its manufacturer, `model` is its model name, and `year` is its manufacture
+year. These three fields are optional for compatibility with existing clients.
 
 Success response (`201 Created`):
 
@@ -48,7 +53,10 @@ Success response (`201 Created`):
   "data": {
     "_id": "6b02ee4d2e55d25879378b67",
     "vin": "1HGCM82633A004352",
-    "vehicle_name": "Honda Accord",
+    "vehicle_name": "My car",
+    "make": "Honda",
+    "model": "Accord",
+    "year": 2020,
     "createdAt": "2026-11-22T13:29:49.036Z",
     "updatedAt": "2026-11-22T13:29:49.036Z"
   }

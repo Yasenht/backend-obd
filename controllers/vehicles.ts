@@ -210,7 +210,13 @@ export default class VehiclesController extends BaseController {
           // the same owner now so a selected vehicle can be scanned directly.
           await ensureProfile(
             Created.id,
-            { displayName: Body.vehicle_name, vin: Body.vin },
+            {
+              displayName: Body.vehicle_name,
+              vin: Body.vin,
+              make: Body.make,
+              model: Body.model,
+              year: Body.year,
+            },
             Account,
           );
 

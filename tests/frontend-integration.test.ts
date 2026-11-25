@@ -42,7 +42,15 @@ Deno.test({
       const vehicle = await request("POST", "/vehicles/", {
         vin: "1HGCM82633A004352",
         vehicle_name: "Integration test",
+        make: " Honda ",
+        model: " Accord ",
+        year: 2020,
       });
+      check(
+        vehicle.make === "Honda" && vehicle.model === "Accord" &&
+          vehicle.year === 2020,
+        "Vehicle details must be saved",
+      );
       const search = await request(
         "GET",
         "/vehicles/search/?vin=1HGCM82633A004352&offset=0&limit=20&includeTotalCount=true",
@@ -60,6 +68,12 @@ Deno.test({
       check(telemetry.results.length === 1, "Telemetry must round-trip");
       const id = `vehicle:${vehicle.id}`;
       const path = `/health/vehicles/${encodeURIComponent(id)}`;
+      const profile = await request("GET", `${path}/profile`);
+      check(
+        profile.make === "Honda" && profile.model === "Accord" &&
+          profile.year === 2020,
+        "Vehicle details must reach the health profile",
+      );
       const now = new Date().toISOString();
       await request("PUT", `${path}/profile`, {
         id,
