@@ -153,9 +153,13 @@ VehicleProfileModel.createIndex({
 });
 
 VehicleProfileModel.createIndex({
-  key: { vin: 1 },
-  name: "profile_vin",
-  partialFilterExpression: { vin: { $type: "string" } },
+  key: { account: 1, vin: 1 },
+  name: "profile_account_vin",
+  unique: true,
+  partialFilterExpression: {
+    account: { $type: "objectId" },
+    vin: { $type: "string" },
+  },
 });
 
 /* -------------------------------------------------------------------------- */
@@ -237,7 +241,18 @@ export const InputDiagnosticScanSchema = e.object({
 
   milOn: e.optional(e.boolean()).default(false),
 
-  dtcCount: e.optional(e.number().int().min(0)).default(0),
+  // This is the ECU's mode-01 MIL count when available. It must remain
+  // absent when the adapter did not report PID 0101; it is not the number of
+  // locally decoded DTC strings.
+  dtcCount: e.optional(e.number().int().min(0)),
+
+  // Immutable snapshot returned by /analyze/dtc for this specific scan.
+  // The server never regenerates it on reads, preserving the original report.
+  dtcAnalysis: e.optional(e.any()),
+
+  analysisVersion: e.optional(e.string().max(80)),
+
+  analyzedAt: e.optional(e.date()),
 
   readinessIncomplete: e.optional(e.array(e.string().max(100)).max(100))
     .default([]),

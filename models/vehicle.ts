@@ -39,6 +39,14 @@ export const InputVehicleSchema = e.object({
 export const VehicleSchema = e.object({
   _id: e.optional(e.instanceOf(ObjectId, { instantiate: true })),
 
+  // Stable public identifier used by the mobile client and health endpoints.
+  // Mongo's _id remains an internal persistence detail.
+  id: e.optional(e.string().min(5).max(80)).default(() =>
+    `veh_${crypto.randomUUID().replaceAll("-", "")}`
+  ),
+
+  account: e.optional(e.instanceOf(ObjectId, { instantiate: true })),
+
   createdAt: e.optional(e.date()).default(() => new Date()),
 
   updatedAt: e.optional(e.date()).default(() => new Date()),
@@ -66,13 +74,23 @@ VehicleModel.pre("update", (details) => {
   };
 });
 
-// Enforce VIN uniqueness at the database level as well as in the controller.
-// The partial filter keeps legacy documents without a VIN out of the index.
+// A VIN may be registered by different accounts, but never twice by the same
+// account. Legacy unowned records remain readable only through migration.
 VehicleModel.createIndex({
-  key: { vin: 1 },
-  name: "vin_unique",
+  key: { account: 1, vin: 1 },
+  name: "vehicle_account_vin_unique",
   unique: true,
-  partialFilterExpression: { vin: { $type: "string" } },
+  partialFilterExpression: {
+    account: { $type: "objectId" },
+    vin: { $type: "string" },
+  },
+});
+
+VehicleModel.createIndex({
+  key: { id: 1 },
+  name: "vehicle_public_id_unique",
+  unique: true,
+  partialFilterExpression: { id: { $type: "string" } },
 });
 
 // Supports searching vehicles by their display name.

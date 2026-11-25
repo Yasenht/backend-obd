@@ -2,6 +2,7 @@
 import { ObjectId } from "mongo";
 import { Response } from "@Core/common/mod.ts";
 import { normalizeVin } from "@Models/vehicle.ts";
+import { VehicleModel } from "@Models/vehicle.ts";
 import { SensorKeys, VehicleProfileModel } from "@Models/health.ts";
 
 export const VinPattern = /^[A-HJ-NPR-Z0-9]{17}$/i;
@@ -41,6 +42,11 @@ export const normalizeVehicleKey = async (rawKey: string) => {
 
   const ById = await VehicleProfileModel.findOne({ id: key });
   if (ById) return ById.key;
+
+  // Public vehicle ids are deliberately resolved to an internal health-profile
+  // key. This keeps the API contract stable without exposing Mongo ids.
+  const Vehicle = await VehicleModel.findOne({ id: key });
+  if (Vehicle) return `vehicle:${Vehicle.id}`;
 
   if (key.startsWith("vin:")) {
     return `vin:${normalizeVin(key.slice(4))}`;
@@ -442,6 +448,25 @@ export const scopeVehicleAccount =
     const RawKey = ctx?.params?.vehicleId;
 
     if (!RawKey) return await next();
+
+    const PublicId = decodePathValue(RawKey);
+    const Vehicle = await VehicleModel.findOne({ id: PublicId });
+
+    // A `veh_*` identifier is always a registered client vehicle. Do not let
+    // a caller manufacture a health profile for an arbitrary public id.
+    if (PublicId.startsWith("veh_")) {
+      if (!Vehicle || String(Vehicle.account) !== String(Account)) {
+        ctx.response.status = 404;
+        ctx.response.body = {
+          status: false,
+          messages: [{
+            message: "Vehicle not found.",
+            code: "VEHICLE_NOT_FOUND",
+          }],
+        };
+        return;
+      }
+    }
 
     const Key = await normalizeVehicleKey(RawKey);
 

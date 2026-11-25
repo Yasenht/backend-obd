@@ -401,13 +401,33 @@ function parseDtc(
 ): ParsedObdResponse {
   const dtcs: string[] = [];
 
+  // OBD modes 03, 07 and 0A return a service-response byte before the
+  // two-byte DTC payload. Treating (for example) 0x43 0x01 as a DTC creates
+  // a false C0301 code for every normal mode-03 response.
+  const ResponseIndex = bytes.findIndex((byte) =>
+    byte === 0x43 || byte === 0x47 || byte === 0x4a
+  );
+
+  if (ResponseIndex < 0) {
+    return {
+      type: "dtc",
+      success: false,
+      status: "invalid_response",
+      values: {},
+      dtcs: [],
+      problem: "رد رموز الأعطال لا يحتوي على ترويسة خدمة OBD صحيحة.",
+    };
+  }
+
+  const payload = bytes.slice(ResponseIndex + 1);
+
   for (
     let i = 0;
-    i + 1 < bytes.length;
+    i + 1 < payload.length;
     i += 2
   ) {
-    const a = bytes[i];
-    const b = bytes[i + 1];
+    const a = payload[i];
+    const b = payload[i + 1];
 
     if (a === 0 && b === 0) {
       continue;

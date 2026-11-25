@@ -34,7 +34,7 @@ import {
   scopeVehicleAccount,
 } from "@Helpers/health.ts";
 import { generateAssessment } from "@Helpers/assessment.ts";
-import { optionalAuth } from "@Helpers/auth.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 
 const MaintenanceListQuery = e.deepCast(e.object({
   limit: e.optional(e.number().int().min(1).max(500)).default(100),
@@ -54,7 +54,7 @@ const AssessmentBodySchema = e.object({
 
 @Controller("/health/", {
   name: "healthMaintenance",
-  middlewares: [optionalAuth(), scopeVehicleAccount()],
+  middlewares: [requireAuth(), scopeVehicleAccount()],
 })
 export default class HealthMaintenanceController extends BaseController {
   @Get("/vehicles/:vehicleId/maintenance")

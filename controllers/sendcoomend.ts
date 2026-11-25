@@ -13,8 +13,12 @@ import { type RouterContext, Status } from "oak";
 import { GeminiObdService } from "@Jobs/GeminiObdService.ts";
 import { ObdParser } from "@Jobs/ObdParser.ts";
 import { AnalyzeObdModel, InputAnalyzeObdSchema } from "@Models/AnalyzeObd.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 
-@Controller("/sendcoomend/", { name: "sendcoomend" })
+@Controller("/sendcoomend/", {
+  name: "sendcoomend",
+  middlewares: [requireAuth()],
+})
 export default class SendcoomendController extends BaseController {
   @Post("/")
   public create(route: IRoute) {

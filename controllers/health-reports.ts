@@ -46,7 +46,7 @@ import {
   sha256Bytes,
   sha256Hex,
 } from "@Helpers/health.ts";
-import { optionalAuth } from "@Helpers/auth.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 import { renderTextPdf } from "@Helpers/report.ts";
 
 const VerifyFeedbackSchema = e.object({
@@ -94,7 +94,7 @@ const predictionEnabled = () =>
 
 @Controller("/health/", {
   name: "healthReports",
-  middlewares: [optionalAuth(), scopeVehicleAccount()],
+  middlewares: [requireAuth(), scopeVehicleAccount()],
 })
 export default class HealthReportsController extends BaseController {
   @Post("/vehicles/:vehicleId/reports")

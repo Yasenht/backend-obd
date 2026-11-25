@@ -52,7 +52,7 @@ import {
   scopeVehicleAccount,
   touchProfileScanTimes,
 } from "@Helpers/health.ts";
-import { optionalAuth } from "@Helpers/auth.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 
 const ProfileListQuery = e.deepCast(e.object({
   search: e.optional(e.string().min(1).max(200)),
@@ -202,7 +202,7 @@ const rebuildDtcRecords = async (vehicleKey: string) => {
 
 @Controller("/health/", {
   name: "health",
-  middlewares: [optionalAuth(), scopeVehicleAccount()],
+  middlewares: [requireAuth(), scopeVehicleAccount()],
 })
 export default class HealthController extends BaseController {
   /* ---------------------------------------------------------------------- */
@@ -299,6 +299,7 @@ export default class HealthController extends BaseController {
           const VinOwner = await VehicleProfileModel.findOne({
             vin: Vin,
             key: { $ne: Key },
+            ...accountFilter(ctx),
           });
 
           if (VinOwner) {
@@ -582,6 +583,19 @@ export default class HealthController extends BaseController {
           );
         }
 
+        if (
+          Body.vehicleId &&
+          decodePathValue(Body.vehicleId) !==
+            decodePathValue(ctx.router.params.vehicleId)
+        ) {
+          return fail(
+            Status.Conflict,
+            "VEHICLE_ID_MISMATCH",
+            "The vehicle id in the body does not match the URL.",
+            "vehicleId",
+          );
+        }
+
         if (Body.readOnly !== true && ReadOnlyScanModes.has(Body.mode)) {
           return fail(
             Status.BadRequest,
@@ -604,7 +618,20 @@ export default class HealthController extends BaseController {
           );
         }
 
-        const ScanId = Body.id.trim();
+        const PathScanId = ctx.router.params.scanId
+          ? decodePathValue(ctx.router.params.scanId)
+          : undefined;
+
+        if (PathScanId && Body.id.trim() !== PathScanId) {
+          return fail(
+            Status.Conflict,
+            "SCAN_ID_MISMATCH",
+            "The scan id in the body does not match the URL.",
+            "id",
+          );
+        }
+
+        const ScanId = PathScanId ?? Body.id.trim();
 
         const Doc = {
           ...Body,
@@ -648,6 +675,15 @@ export default class HealthController extends BaseController {
     };
   }
 
+  /**
+   * Preferred idempotent contract for clients. POST remains available for
+   * backwards compatibility and uses the same upsert implementation.
+   */
+  @Put("/vehicles/:vehicleId/scans/:scanId")
+  public putScan(route: IRoute) {
+    return this.createScan(route);
+  }
+
   @Get("/vehicles/:vehicleId/scans")
   public listScans(_route: IRoute) {
     return {
@@ -686,8 +722,12 @@ export default class HealthController extends BaseController {
           .limit(Query.limit)
           .project({ rawRecords: 0 });
 
+        const Count = await DiagnosticScanModel.countDocuments(Filter);
+
         return Response.data({
-          totalCount: await DiagnosticScanModel.countDocuments(Filter),
+          count: Count,
+          totalCount: Count,
+          scans: Results,
           results: Results,
         });
       },
@@ -1027,8 +1067,12 @@ export default class HealthController extends BaseController {
           .skip(Query.offset)
           .limit(Query.limit);
 
+        const Count = await DtcRecordModel.countDocuments(Filter);
+
         return Response.data({
-          totalCount: await DtcRecordModel.countDocuments(Filter),
+          count: Count,
+          totalCount: Count,
+          dtcs: Results,
           results: Results,
         });
       },

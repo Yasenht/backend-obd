@@ -36,7 +36,7 @@ import {
   scopeVehicleAccount,
   severityForDtc,
 } from "@Helpers/health.ts";
-import { optionalAuth } from "@Helpers/auth.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 
 const SensorListQuery = e.deepCast(e.object({
   key: e.optional(e.string().max(500)),
@@ -72,7 +72,7 @@ type TimelineType = typeof timelineTypes[number];
 
 @Controller("/health/", {
   name: "healthSensors",
-  middlewares: [optionalAuth(), scopeVehicleAccount()],
+  middlewares: [requireAuth(), scopeVehicleAccount()],
 })
 export default class HealthSensorsController extends BaseController {
   @Post("/vehicles/:vehicleId/sensors")

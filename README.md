@@ -1,6 +1,8 @@
-# epic-api
+# OBD App API
 
-A simple and powerful api framework that allows you to build faster!
+Backend API for vehicle profiles, OBD-II scan ingestion, health reporting,
+and AI-assisted diagnostic explanations. It is built on the Epic API
+framework with Deno, Oak, and MongoDB.
 
 ### Quick Start
 
@@ -18,8 +20,20 @@ files. You need to create the following files:\
 ./env/.production.env\
 ./env/.test.env
 
-You can copy the initial environment variables content from ./.sample.env and
-modify them.
+You can copy the initial environment variables content from `./.sample.env`
+and modify them. `JWT_SECRET` is mandatory and must be a unique value of at
+least 32 characters. Configure `GEMINI_API_KEY` to enable the AI analysis
+endpoints.
+
+### Existing MongoDB deployments
+
+Vehicle ownership is now scoped by account and uses the public `veh_...` id
+returned by `POST /api/vehicles/`. Before deploying this version against an
+existing database, back it up and migrate legacy vehicles to an account. The
+previous global `vin_unique` and `profile_vin` indexes must then be replaced
+with the new account-scoped indexes declared by the application. This is not
+performed automatically because removing a production index is an operational
+and potentially disruptive action.
 
 ### Execute the following commands to run the application on your local machine:
 

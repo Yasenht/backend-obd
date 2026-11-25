@@ -2,9 +2,12 @@ import "./index.d.ts";
 
 import { getMemoryUsageDetails, Loader } from "@Core/common/mod.ts";
 import { createAppServer } from "@Core/server.ts";
+import { assertAuthConfiguration } from "@Helpers/auth.ts";
 
 if (import.meta.main) {
   console.time("Server Startup Time:");
+
+  assertAuthConfiguration();
 
   await Loader.load({ excludeTypes: ["templates", "models"] });
 

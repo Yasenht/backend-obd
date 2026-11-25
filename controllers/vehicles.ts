@@ -23,9 +23,11 @@ import {
   InputVehicleTelemetrySchema,
   VehicleTelemetryModel,
 } from "@Models/vehicle-telemetry.ts";
+import { requireAuth } from "@Helpers/auth.ts";
+import { ensureProfile, getAccountId } from "@Helpers/health.ts";
 
 const ParamsSchema = e.object({
-  id: e.instanceOf(ObjectId, { instantiate: true }),
+  id: e.string().min(1).max(80),
 });
 
 const SearchQuerySchema = e.deepCast(e.object(
@@ -60,6 +62,14 @@ const isDuplicateKeyError = (error: unknown) =>
   error !== null &&
   "code" in error &&
   (error as { code?: number }).code === 11000;
+
+const vehicleFilter = (id: string, account: ObjectId) => ({
+  account,
+  $or: [
+    { id },
+    ...(ObjectId.isValid(id) ? [{ _id: new ObjectId(id) }] : []),
+  ],
+});
 
 /**
  * Search vehicles by name or VIN.
@@ -126,7 +136,11 @@ const buildSearchHandler = (route: IRoute) =>
         });
       }
 
-      const Filters: Record<string, unknown> = { $and: Conditions };
+      const Account = getAccountId(ctx);
+      const Filters: Record<string, unknown> = {
+        account: Account,
+        $and: Conditions,
+      };
 
       const Results = await VehicleModel
         .find(Filters)
@@ -134,17 +148,21 @@ const buildSearchHandler = (route: IRoute) =>
         .skip(Query.offset)
         .limit(Query.limit);
 
+      const Count = await VehicleModel.countDocuments(Filters);
+
       return Response.data({
-        totalCount: Query.includeTotalCount
-          ? await VehicleModel.countDocuments(Filters)
-          : undefined,
+        count: Count,
+        totalCount: Query.includeTotalCount ? Count : undefined,
 
         results: Results,
       });
     },
   });
 
-@Controller("/vehicles/", { name: "vehicles" })
+@Controller("/vehicles/", {
+  name: "vehicles",
+  middlewares: [requireAuth()],
+})
 export default class VehiclesController extends BaseController {
   @Post("/")
   public create(route: IRoute) {
@@ -169,33 +187,45 @@ export default class VehiclesController extends BaseController {
           { name: `${route.scope}.body` },
         );
 
+        const Account = getAccountId(ctx)!;
         const Existing = await VehicleModel.findOne({
+          account: Account,
           vin: Body.vin,
         });
 
         if (Existing) {
           return Response
             .statusCode(Status.Conflict)
-            .message(
-              "A vehicle with this VIN already exists.",
-            );
+            .data({
+              code: "VEHICLE_ALREADY_REGISTERED",
+              vehicle: Existing,
+            });
         }
 
         try {
+          const Created = await VehicleModel.create({
+            ...Body,
+            account: Account,
+          });
+
+          // Health data uses a separate profile collection. Provision it with
+          // the same owner now so a selected vehicle can be scanned directly.
+          await ensureProfile(
+            Created.id,
+            { displayName: Body.vehicle_name, vin: Body.vin },
+            Account,
+          );
+
           return Response
             .statusCode(Status.Created)
-            .data(
-              await VehicleModel.create(Body),
-            );
+            .data(Created);
         } catch (error) {
           // Handles the race between the duplicate check above and the
           // database-level unique index on `vin`.
           if (isDuplicateKeyError(error)) {
             return Response
               .statusCode(Status.Conflict)
-              .message(
-                "A vehicle with this VIN already exists.",
-              );
+              .data({ code: "VEHICLE_ALREADY_REGISTERED" });
           }
 
           throw error;
@@ -247,9 +277,9 @@ export default class VehiclesController extends BaseController {
           { name: `${route.scope}.params` },
         );
 
-        const Vehicle = await VehicleModel.findOne({
-          _id: Params.id,
-        });
+        const Vehicle = await VehicleModel.findOne(
+          vehicleFilter(Params.id, getAccountId(ctx)!),
+        );
 
         if (!Vehicle) {
           return Response
@@ -298,9 +328,9 @@ export default class VehiclesController extends BaseController {
           { name: `${route.scope}.body` },
         );
 
-        const Vehicle = await VehicleModel.findOne({
-          _id: Params.id,
-        });
+        const Vehicle = await VehicleModel.findOne(
+          vehicleFilter(Params.id, getAccountId(ctx)!),
+        );
 
         if (!Vehicle) {
           return Response
@@ -313,7 +343,7 @@ export default class VehiclesController extends BaseController {
           .data(
             await VehicleTelemetryModel.create({
               ...Body,
-              vehicle: Params.id,
+              vehicle: Vehicle._id,
             }),
           );
       },
@@ -354,9 +384,9 @@ export default class VehiclesController extends BaseController {
           { name: `${route.scope}.query` },
         );
 
-        const Vehicle = await VehicleModel.findOne({
-          _id: Params.id,
-        });
+        const Vehicle = await VehicleModel.findOne(
+          vehicleFilter(Params.id, getAccountId(ctx)!),
+        );
 
         if (!Vehicle) {
           return Response
@@ -365,7 +395,7 @@ export default class VehiclesController extends BaseController {
         }
 
         const BaseFilters = {
-          vehicle: Params.id,
+          vehicle: Vehicle._id,
         };
 
         const ListQuery = VehicleTelemetryModel

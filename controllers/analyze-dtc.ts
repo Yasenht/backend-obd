@@ -12,10 +12,14 @@ import { type RouterContext, Status } from "oak";
 import { AnalyzeDtcModel, InputAnalyzeDtcSchema } from "@Models/analyze-dtc.ts";
 
 import { GeminiDtcService } from "@Jobs/gemini-dtc.service.ts";
+import { requireAuth } from "@Helpers/auth.ts";
 
 import { responseValidator } from "@Core/common/validators.ts";
 
-@Controller("/analyze/dtc/", { name: "analyzeDtc" })
+@Controller("/analyze/dtc/", {
+  name: "analyzeDtc",
+  middlewares: [requireAuth()],
+})
 export default class AnalyzeDtcController extends BaseController {
   @Post("/")
   public create(route: IRoute) {
@@ -45,7 +49,13 @@ export default class AnalyzeDtcController extends BaseController {
           );
 
           // إذا لم توجد رموز أعطال
-          if (Body.codes.length === 0) {
+          const Codes = Array.from(
+            new Set(
+              Body.codes.map((code) => code.trim().toUpperCase()),
+            ),
+          );
+
+          if (Codes.length === 0) {
             return Response
               .statusCode(Status.OK)
               .data({
@@ -69,12 +79,14 @@ export default class AnalyzeDtcController extends BaseController {
 
           const faults = [];
 
-          for (const code of Body.codes) {
+          for (const code of Codes) {
             try {
               const analysis = await gemini.analyzeDtc(code);
 
               faults.push({
                 ...analysis,
+
+                success: true,
 
                 severityPercentage: Math.min(
                   100,
@@ -99,9 +111,9 @@ export default class AnalyzeDtcController extends BaseController {
             .data({
               success: true,
 
-              codes: Body.codes,
+              codes: Codes,
 
-              status: "faults_detected",
+              status: "faults_found",
 
               title: "تم اكتشاف أعطال",
 

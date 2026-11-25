@@ -2,11 +2,15 @@ import e, { inferInput, inferOutput } from "validator";
 import { InputDocument, Mongo, ObjectId, OutputDocument } from "mongo";
 
 export const InputAnalyzeDtcSchema = e.object({
-  codes: e.array(e.string()).min(0).max(100),
+  codes: e.array(
+    e.string().matches(/^[PBCU][0-9A-F]{4}$/i),
+  ).min(0).max(100),
 });
 
 export const DtcFaultSchema = e.object({
   code: e.string(),
+
+  success: e.optional(e.boolean()).default(true),
 
   category: e.string(),
 
@@ -41,6 +45,12 @@ export const DtcFaultSchema = e.object({
   confidence: e.number(),
 });
 
+export const DtcFaultFailureSchema = e.object({
+  code: e.string(),
+  success: e.boolean(),
+  error: e.string(),
+});
+
 // Schema الخاص بالنتيجة النهائية
 export const AnalyzeDtcSchema = e.object({
   _id: e.optional(
@@ -65,7 +75,7 @@ export const AnalyzeDtcSchema = e.object({
 
   totalFaults: e.number(),
 
-  faults: e.array(DtcFaultSchema),
+  faults: e.array(e.or([DtcFaultSchema, DtcFaultFailureSchema])),
 }).extends(InputAnalyzeDtcSchema);
 
 export type TAnalyzeDtcInput = InputDocument<

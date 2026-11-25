@@ -1,24 +1,38 @@
 // deno-lint-ignore-file no-explicit-any
 import { ObjectId } from "mongo";
+import { Env } from "@Core/common/env.ts";
 import { AccountModel, RefreshTokenModel } from "@Models/account.ts";
 import { sha256Hex } from "@Helpers/health.ts";
 
 const Encoder = new TextEncoder();
 const Decoder = new TextDecoder();
 
-const JwtSecret = () =>
-  Deno.env.get("JWT_SECRET") ?? "drive-scope-development-secret-change-me";
+const JwtSecret = () => {
+  const Secret = Env.getAll().JWT_SECRET;
+
+  if (!Secret || Secret.length < 32) {
+    throw new Error(
+      "JWT_SECRET must be configured and at least 32 characters long.",
+    );
+  }
+
+  return Secret;
+};
+
+/** Validate authentication configuration during application startup. */
+export const assertAuthConfiguration = () => {
+  JwtSecret();
+};
 
 const JwtIssuer = () =>
-  Deno.env.get("JWT_ISSUER") ?? "https://backend-obd.onrender.com";
+  Env.getAll().JWT_ISSUER ?? "https://backend-obd.onrender.com";
 
-const JwtAudience = () => Deno.env.get("JWT_AUDIENCE") ?? "drive_scope";
+const JwtAudience = () => Env.getAll().JWT_AUDIENCE ?? "drive_scope";
 
-const AccessTtl = () =>
-  Number(Deno.env.get("JWT_ACCESS_TTL") ?? "1800") || 1800;
+const AccessTtl = () => Number(Env.getAll().JWT_ACCESS_TTL ?? "1800") || 1800;
 
 const RefreshTtl = () =>
-  Number(Deno.env.get("JWT_REFRESH_TTL") ?? "2592000") || 2592000;
+  Number(Env.getAll().JWT_REFRESH_TTL ?? "2592000") || 2592000;
 
 const base64UrlEncode = (value: Uint8Array | string) => {
   const Bytes = typeof value === "string" ? Encoder.encode(value) : value;
@@ -214,15 +228,27 @@ export const accountFromRequest = async (ctx: any) => {
 };
 
 /**
- * Optional bearer-token middleware. The health API remains usable without
- * authentication for local/development use, but requests carrying a valid
- * token are scoped to that account.
+ * Require a valid bearer token and expose its account id to downstream
+ * handlers. Health records and AI diagnostics are user data, so allowing an
+ * anonymous request would bypass all account scoping.
  */
-export const optionalAuth =
+export const requireAuth =
   () => async (ctx: any, next: () => Promise<unknown>) => {
     const Account = await accountFromRequest(ctx).catch(() => null);
 
-    if (Account?._id) ctx.state.accountId = Account._id;
+    if (!Account?._id) {
+      ctx.response.status = 401;
+      ctx.response.body = {
+        status: false,
+        messages: [{
+          message: "A valid bearer token is required.",
+          code: "UNAUTHENTICATED",
+        }],
+      };
+      return;
+    }
+
+    ctx.state.accountId = Account._id;
 
     await next();
   };
