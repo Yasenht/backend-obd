@@ -162,6 +162,7 @@ export default class HealthSensorsController extends BaseController {
 
           const Doc = {
             ...Reading,
+            vehicleId: Profile.key,
             vehicleKey: Profile.key,
             readingId: Reading.id,
             ...(Account ? { account: Account } : {}),
@@ -232,7 +233,10 @@ export default class HealthSensorsController extends BaseController {
 
           return Response.data({
             totalCount: await SensorReadingModel.countDocuments(Filter),
-            results: Results,
+            results: Results.map((reading) => ({
+              ...reading,
+              vehicleId: reading.vehicleId ?? Profile.key,
+            })),
           });
         }
 

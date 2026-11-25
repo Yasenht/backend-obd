@@ -79,6 +79,14 @@ export default class AnalyzeDtcController extends BaseController {
 
           for (const code of Codes) {
             try {
+              if (!/^[PBCU][0-9A-F]{4}$/.test(code)) {
+                faults.push({
+                  code,
+                  success: false,
+                  error: "رمز العطل غير صالح",
+                });
+                continue;
+              }
               const analysis = await gemini.analyzeDtc(code);
 
               faults.push({

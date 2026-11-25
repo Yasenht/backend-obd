@@ -100,14 +100,17 @@ const DtcObservationInputSchema = e.object({
 
 const MigrationBodySchema = e.object({
   fromVehicleId: e.string().min(1).max(300),
-  targetProfile: e.optional(e.object({
-    displayName: e.optional(e.string().min(1).max(200)),
-    vin: e.optional(e.or([VinSchema, e.null()])),
-    make: e.optional(e.or([e.string(), e.null()])),
-    model: e.optional(e.or([e.string(), e.null()])),
-    year: e.optional(e.or([e.number().int().min(1886).max(3000), e.null()])),
-    notes: e.optional(e.string().max(10000)),
-  })),
+  targetProfile: e.optional(e.or([
+    e.object({
+      displayName: e.optional(e.string().min(1).max(200)),
+      vin: e.optional(e.or([VinSchema, e.null()])),
+      make: e.optional(e.or([e.string(), e.null()])),
+      model: e.optional(e.or([e.string(), e.null()])),
+      year: e.optional(e.or([e.number().int().min(1886).max(3000), e.null()])),
+      notes: e.optional(e.string().max(10000)),
+    }, { allowUnexpectedProps: true }),
+    e.null(),
+  ])),
 }, { allowUnexpectedProps: true });
 
 type DtcState = "stored" | "pending" | "permanent" | "historical";
@@ -389,7 +392,7 @@ export default class HealthController extends BaseController {
 
         const Target = await ensureProfile(
           ToKey,
-          Body.targetProfile,
+          Body.targetProfile ?? undefined,
           getAccountId(ctx),
         );
 
@@ -544,8 +547,12 @@ export default class HealthController extends BaseController {
       handler: async (
         ctx: IRequestContext<RouterContext<string>>,
       ) => {
+        const RawBody = await ctx.router.request.body.json();
         const Body = await InputDiagnosticScanSchema.validate(
-          await ctx.router.request.body.json(),
+          {
+            ...RawBody,
+            milOn: RawBody.milOn === undefined ? false : RawBody.milOn,
+          },
           { name: "health.scan.body" },
         );
 
@@ -636,6 +643,7 @@ export default class HealthController extends BaseController {
           ...Body,
           vehicleKey: Profile.key,
           scanId: ScanId,
+          milOn: RawBody.milOn === null ? null : Body.milOn,
           ...(getAccountId(ctx) ? { account: getAccountId(ctx) } : {}),
           vin: Body.vin ? Body.vin.trim().toUpperCase() : null,
           dtcCodes: normalizeDtcCodes(Body.dtcCodes),
@@ -718,8 +726,7 @@ export default class HealthController extends BaseController {
         const Results = await DiagnosticScanModel.find(Filter)
           .sort({ completedAt: -1, startedAt: -1, _id: -1 })
           .skip(Query.offset)
-          .limit(Query.limit)
-          .project({ rawRecords: 0 });
+          .limit(Query.limit);
 
         const Count = await DiagnosticScanModel.countDocuments(Filter);
 

@@ -140,8 +140,9 @@ export default class HealthMaintenanceController extends BaseController {
 
         const Account = getAccountId(ctx);
 
+        const { createdAt: CreatedAt, ...Fields } = Body;
         const Doc = {
-          ...Body,
+          ...Fields,
           id: RecordId,
           vehicleId: Profile.key,
           vehicleKey: Profile.key,
@@ -154,7 +155,7 @@ export default class HealthMaintenanceController extends BaseController {
           { vehicleKey: Profile.key, recordId: RecordId },
           {
             $set: Doc,
-            $setOnInsert: { createdAt: new Date() },
+            $setOnInsert: { createdAt: CreatedAt ?? new Date() },
           },
           { upsert: true },
         );

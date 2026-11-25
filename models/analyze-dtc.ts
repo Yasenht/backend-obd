@@ -3,7 +3,7 @@ import { InputDocument, Mongo, ObjectId, OutputDocument } from "mongo";
 
 export const InputAnalyzeDtcSchema = e.object({
   codes: e.array(
-    e.string().matches(/^[PBCU][0-9A-F]{4}$/i),
+    e.string().max(100),
   ).min(0).max(100),
 });
 

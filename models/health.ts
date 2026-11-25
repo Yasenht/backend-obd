@@ -114,7 +114,7 @@ export const VehicleProfileInputSchema = e.object({
   ])),
 
   notes: e.optional(e.string().max(10000)).default(""),
-});
+}, { allowUnexpectedProps: true });
 
 export const VehicleProfileSchema = e.object({
   _id: IdField,
@@ -239,12 +239,12 @@ export const InputDiagnosticScanSchema = e.object({
     [],
   ),
 
-  milOn: e.optional(e.boolean()).default(false),
+  milOn: e.or([e.null(), e.boolean()]),
 
   // This is the ECU's mode-01 MIL count when available. It must remain
   // absent when the adapter did not report PID 0101; it is not the number of
   // locally decoded DTC strings.
-  dtcCount: e.optional(e.number().int().min(0)),
+  dtcCount: e.optional(e.or([e.number().int().min(0), e.null()])),
 
   // Immutable snapshot returned by /analyze/dtc for this specific scan.
   // The server never regenerates it on reads, preserving the original report.
@@ -421,6 +421,8 @@ DtcObservationModel.createIndex({
 export const InputSensorReadingSchema = e.object({
   id: e.string().min(1).max(120),
 
+  vehicleId: e.optional(e.string().min(1).max(300)),
+
   key: e.string().min(1).max(80),
 
   label: e.optional(e.string().max(200)).default(""),
@@ -518,6 +520,8 @@ export const RepairVerificationSchema = e.object({
 
 export const InputMaintenanceSchema = e.object({
   id: e.optional(e.string().min(1).max(120)),
+
+  createdAt: e.optional(e.date()),
 
   vehicleId: e.optional(e.string().max(300)),
 
