@@ -229,6 +229,27 @@ export const InputDiagnosticScanSchema = e.object({
 
   vin: e.optional(e.or([VinSchema, e.null()])),
 
+  // Optional historical snapshot supplied by the client, not current vehicle data.
+  vehicleSnapshot: e.optional(e.or([
+    e.null(),
+    e.object({
+      vin: e.optional(e.or([e.null(), VinSchema])),
+      vehicle_name: e.optional(e.string().max(120)),
+      make: e.optional(e.or([e.null(), e.string().max(120)])),
+      model: e.optional(e.or([e.null(), e.string().max(120)])),
+      year: e.optional(e.or([e.null(), e.number().int().min(1886).max(3000)])),
+    }, { allowUnexpectedProps: true }),
+  ])),
+
+  sensorReadings: e.optional(
+    e.array(e.object({
+      key: e.string().min(1).max(80),
+      value: e.number(),
+      unit: e.optional(e.string().max(40)),
+      recordedAt: e.optional(e.date()),
+    }, { allowUnexpectedProps: true })).max(5000),
+  ),
+
   modules: e.optional(e.array(ScanModuleSchema).max(100)).default([]),
 
   rawRecords: e.optional(e.array(RawRecordSchema).max(5000)).default([]),
@@ -286,7 +307,7 @@ export const DiagnosticScanModel = Mongo.model(
 DiagnosticScanModel.pre("update", (details) => {
   details.updates.$set = {
     ...details.updates.$set,
-    updatedAt: new Date(),
+    updatedAt: details.updates.$set?.updatedAt ?? new Date(),
   };
 });
 

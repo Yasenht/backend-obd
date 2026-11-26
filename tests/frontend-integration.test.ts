@@ -66,6 +66,11 @@ Deno.test({
         `/vehicles/${vehicle.id}/telemetry/?offset=0&limit=20&includeTotalCount=true`,
       );
       check(telemetry.results.length === 1, "Telemetry must round-trip");
+      const vehicleDetails = await request("GET", `/vehicles/${vehicle.id}/`);
+      check(
+        vehicleDetails.latestTelemetry?.speed === 50,
+        "Vehicle detail must include latest telemetry",
+      );
       const id = `vehicle:${vehicle.id}`;
       const path = `/health/vehicles/${encodeURIComponent(id)}`;
       const profile = await request("GET", `${path}/profile`);
@@ -99,6 +104,14 @@ Deno.test({
         protocol: "",
         adapterName: "",
         vin: null,
+        vehicleSnapshot: {
+          vin: vehicle.vin,
+          vehicle_name: "Integration test",
+          make: "Honda",
+          model: "Accord",
+          year: 2020,
+        },
+        sensorReadings: [{ key: "rpm", value: 800, unit: "rpm" }],
         modules: [],
         rawRecords: [{
           id: "raw-1",
@@ -119,6 +132,34 @@ Deno.test({
         dataCoverage: 0,
         notes: "",
       };
+      const reject = async (
+        method: string,
+        url: string,
+        payload: unknown,
+        status: number,
+      ) => {
+        const response = await server.fetch(new URL(base + url), {
+          method,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        check(
+          response?.status === status,
+          `Expected ${status} for ${url}, got ${response?.status}`,
+        );
+      };
+      await reject("POST", `${path}/scans`, {
+        ...scan,
+        vin: "1HGCM82633A004353",
+      }, 409);
+      await reject("POST", "/health/vehicles/vehicle%3Aveh_missing/scans", {
+        ...scan,
+        vehicleId: "vehicle:veh_missing",
+      }, 404);
+      await reject("POST", `${path}/scans`, {
+        ...scan,
+        completedAt: "2000-01-01T00:00:00Z",
+      }, 400);
       await request("POST", `${path}/scans`, scan);
       await request("POST", `${path}/scans`, {
         ...scan,
@@ -130,6 +171,53 @@ Deno.test({
           scans.results[0].rawRecords.length === 1 &&
           scans.results[0].milOn === null,
         "Scan updates must preserve a single full scan and unknown MIL status",
+      );
+      const detail = await request("GET", `${path}/scans/scan-1`);
+      check(
+        detail.id === "scan-1" && detail.dtcAnalysis.success &&
+          detail.vehicleSnapshot?.model === "Accord" &&
+          detail.sensorReadings?.[0]?.value === 800,
+        "Scan details must retain analysis and snapshots",
+      );
+      const patchAnalysis = (version: string) =>
+        server.fetch(new URL(base + `${path}/scans/scan-1/analysis`), {
+          method: "PATCH",
+          headers: { "content-type": "application/json", "if-match": version },
+          body: JSON.stringify({
+            dtcAnalysis: { success: true, title: "updated" },
+          }),
+        });
+      const changed = await patchAnalysis(detail.updatedAt);
+      check(
+        changed?.status === 200,
+        "Analysis update must succeed for current version",
+      );
+      const stale = await patchAnalysis(detail.updatedAt);
+      check(
+        stale?.status === 412,
+        "Analysis update must reject stale versions",
+      );
+      const updated = await request("GET", `${path}/scans/scan-1`);
+      check(
+        updated.dtcAnalysis.title === "updated" &&
+          updated.rawRecords.length === 1,
+        "Analysis update must preserve observations",
+      );
+      await reject("POST", `${path}/scans`, {
+        ...scan,
+        startedAt: "2000-01-01T00:00:00Z",
+      }, 409);
+      const otherVehicle = await request("POST", "/vehicles/", {
+        vin: "1HGCM82633A004353",
+        vehicle_name: "Other",
+      });
+      const otherPath = `/health/vehicles/${
+        encodeURIComponent(`vehicle:${otherVehicle.id}`)
+      }`;
+      const otherHistory = await request("GET", `${otherPath}/scans`);
+      check(
+        otherHistory.results.length === 0,
+        "Scan history must be separate for each vehicle",
       );
       await request("POST", `${path}/sensors`, {
         readings: [{

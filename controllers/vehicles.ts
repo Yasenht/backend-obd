@@ -292,7 +292,7 @@ export default class VehiclesController extends BaseController {
         }
 
         const LatestTelemetry = await VehicleTelemetryModel
-          .findOne({ vehicle: Params.id })
+          .findOne({ vehicle: Vehicle._id })
           .sort({ recordedAt: -1 });
 
         return Response.data({

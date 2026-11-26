@@ -7,6 +7,7 @@ import {
   type IRequestContext,
   type IRoute,
   parseQueryParams,
+  Patch,
   Post,
   Put,
   RawResponse,
@@ -14,6 +15,7 @@ import {
 } from "@Core/common/mod.ts";
 import { type RouterContext, Status } from "oak";
 import e from "validator";
+import { VehicleModel } from "@Models/vehicle.ts";
 
 import {
   DiagnosticScanModel,
@@ -556,6 +558,33 @@ export default class HealthController extends BaseController {
           { name: "health.scan.body" },
         );
 
+        const PathVehicle = decodePathValue(ctx.router.params.vehicleId)
+          .replace(/^vehicle:/, "");
+        if (PathVehicle.startsWith("veh_")) {
+          const Vehicle = await VehicleModel.findOne({ id: PathVehicle });
+          if (!Vehicle) {
+            return fail(
+              Status.NotFound,
+              "VEHICLE_NOT_FOUND",
+              "Vehicle not found.",
+            );
+          }
+          if (
+            (Body.vin &&
+              Body.vin.toUpperCase() !== Vehicle.vin.toUpperCase()) ||
+            (Body.vehicleSnapshot?.vin &&
+              Body.vehicleSnapshot.vin.toUpperCase() !==
+                Vehicle.vin.toUpperCase())
+          ) {
+            return fail(
+              Status.Conflict,
+              "VIN_MISMATCH",
+              "The VIN does not match the selected vehicle.",
+              "vin",
+            );
+          }
+        }
+
         const Profile = await ensureProfile(
           ctx.router.params.vehicleId,
           undefined,
@@ -585,6 +614,15 @@ export default class HealthController extends BaseController {
             422,
             "FUTURE_TIMESTAMP",
             "completedAt cannot be more than five minutes in the future.",
+            "completedAt",
+          );
+        }
+
+        if (Body.completedAt && Body.completedAt < Body.startedAt) {
+          return fail(
+            Status.BadRequest,
+            "INVALID_SCAN_TIMES",
+            "completedAt cannot be before startedAt.",
             "completedAt",
           );
         }
@@ -639,8 +677,17 @@ export default class HealthController extends BaseController {
 
         const ScanId = PathScanId ?? Body.id.trim();
 
+        const {
+          _id: _ignoredId,
+          account: _ignoredAccount,
+          createdAt: _ignoredCreatedAt,
+          updatedAt: _ignoredUpdatedAt,
+          vehicleKey: _ignoredVehicleKey,
+          scanId: _ignoredScanId,
+          ...ScanFields
+        } = Body as typeof Body & Record<string, any>;
         const Doc = {
-          ...Body,
+          ...ScanFields,
           vehicleKey: Profile.key,
           scanId: ScanId,
           milOn: RawBody.milOn === null ? null : Body.milOn,
@@ -656,12 +703,45 @@ export default class HealthController extends BaseController {
         });
 
         if (Existing) {
+          if (
+            new Date(Existing.startedAt).getTime() !==
+              Body.startedAt.getTime() ||
+            (Existing.vin && Body.vin &&
+              Existing.vin !== Body.vin.toUpperCase())
+          ) {
+            return fail(
+              Status.Conflict,
+              "SCAN_ID_CONFLICT",
+              "This scan id belongs to a different session.",
+              "id",
+            );
+          }
           await DiagnosticScanModel.updateOne(
             { _id: Existing._id },
-            { $set: Doc },
+            {
+              $set: {
+                ...Doc,
+                updatedAt: new Date(
+                  Math.max(
+                    Date.now(),
+                    new Date(Existing.updatedAt).getTime() + 1,
+                  ),
+                ),
+              },
+            },
           );
         } else {
-          await DiagnosticScanModel.create(Doc);
+          try {
+            await DiagnosticScanModel.create(Doc);
+          } catch (error) {
+            if (!isDuplicateKeyError(error)) throw error;
+            return fail(
+              Status.Conflict,
+              "SCAN_CONFLICT",
+              "A scan with this id already exists. Retrieve it before retrying.",
+              "id",
+            );
+          }
         }
 
         await touchProfileScanTimes(
@@ -689,6 +769,93 @@ export default class HealthController extends BaseController {
   @Put("/vehicles/:vehicleId/scans/:scanId")
   public putScan(route: IRoute) {
     return this.createScan(route);
+  }
+
+  @Patch("/vehicles/:vehicleId/scans/:scanId/analysis")
+  public updateScanAnalysis(_route: IRoute) {
+    return {
+      handler: async (ctx: IRequestContext<RouterContext<string>>) => {
+        const Profile = await findProfile(ctx.router.params.vehicleId);
+        if (!Profile) {
+          return fail(
+            Status.NotFound,
+            "VEHICLE_NOT_FOUND",
+            "Vehicle profile not found.",
+          );
+        }
+        const Scan = await DiagnosticScanModel.findOne({
+          vehicleKey: Profile.key,
+          scanId: decodePathValue(ctx.router.params.scanId),
+        });
+        if (!Scan) {
+          return fail(
+            Status.NotFound,
+            "SCAN_NOT_FOUND",
+            "Diagnostic scan not found.",
+          );
+        }
+
+        const Match = ctx.router.request.headers.get("if-match")?.trim()
+          .replace(/^"|"$/g, "");
+        if (!Match || !Number.isFinite(Date.parse(Match))) {
+          return fail(
+            Status.BadRequest,
+            "INVALID_IF_MATCH",
+            "If-Match must contain the scan's updatedAt timestamp.",
+          );
+        }
+        const Body = await ctx.router.request.body.json();
+        if (
+          !Body || typeof Body !== "object" || Array.isArray(Body) ||
+          !Object.hasOwn(Body, "dtcAnalysis") ||
+          (Body.dtcAnalysis !== null &&
+            (typeof Body.dtcAnalysis !== "object" ||
+              Array.isArray(Body.dtcAnalysis)))
+        ) {
+          return fail(
+            Status.BadRequest,
+            "INVALID_ANALYSIS",
+            "dtcAnalysis must be an object or null.",
+            "dtcAnalysis",
+          );
+        }
+        if (JSON.stringify(Body.dtcAnalysis).length > 262144) {
+          return fail(
+            Status.BadRequest,
+            "ANALYSIS_TOO_LARGE",
+            "dtcAnalysis is too large.",
+            "dtcAnalysis",
+          );
+        }
+        const Result = await DiagnosticScanModel.updateOne(
+          { _id: Scan._id, updatedAt: new Date(Match) },
+          {
+            $set: {
+              dtcAnalysis: Body.dtcAnalysis,
+              updatedAt: new Date(Math.max(Date.now(), Date.parse(Match) + 1)),
+            },
+          },
+        );
+        if (!Result.matchedCount) {
+          return fail(
+            Status.PreconditionFailed,
+            "SCAN_VERSION_MISMATCH",
+            "The scan has changed. Reload it before saving analysis.",
+          );
+        }
+        const UpdatedScan = await DiagnosticScanModel.findOne({
+          _id: Scan._id,
+        });
+        if (!UpdatedScan) {
+          return fail(
+            Status.NotFound,
+            "SCAN_NOT_FOUND",
+            "Diagnostic scan not found.",
+          );
+        }
+        return Response.data(UpdatedScan);
+      },
+    };
   }
 
   @Get("/vehicles/:vehicleId/scans")
